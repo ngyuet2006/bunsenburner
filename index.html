@@ -1,0 +1,1934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bunsen Burner 3D Interactive Lab - Lighting & Flames</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js r128 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(180deg, #eef6ff 0%, #f8fbff 55%, #ffffff 100%);
+            color: #0f172a;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        /* Bright Textbook Card Aesthetic */
+        .lab-card {
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 2px solid #cbd5e1;
+            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 4px 10px -2px rgba(15, 23, 42, 0.04);
+        }
+
+        /* Textbook Purple-Bordered Results Box (matching Image 1) */
+        .textbook-results-card {
+            background: #ffffff;
+            border: 2.5px solid #6b4c9a;
+            border-radius: 18px;
+            box-shadow: 0 8px 20px rgba(107, 76, 154, 0.1);
+        }
+
+        /* Textbook Pink Answer Font Style */
+        .pink-answer {
+            color: #c81e68;
+            font-weight: 700;
+        }
+
+        /* Textbook Red Key Badge (matching Image 1 & 2) */
+        .red-key-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 22px;
+            background-color: #c81e1e;
+            color: #ffffff;
+            border-radius: 3px;
+            font-size: 10px;
+            cursor: pointer;
+            transition: transform 0.15s ease, background-color 0.15s ease;
+            box-shadow: 0 2px 4px rgba(200, 30, 30, 0.25);
+        }
+        .red-key-badge:hover {
+            transform: scale(1.12);
+            background-color: #991b1b;
+        }
+
+        /* 3D Viewport Container */
+        #canvas-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 35%, #ffffff 0%, #e0effe 65%, #cfe4fc 100%);
+            cursor: grab;
+            overflow: hidden;
+        }
+        #canvas-wrapper:active {
+            cursor: grabbing;
+        }
+
+        /* Floating 3D HTML Labels */
+        .scene-tag {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            pointer-events: auto;
+            z-index: 15;
+            white-space: nowrap;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        /* Custom Air Hole Slider */
+        input[type=range].collar-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 12px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 35%, #60a5fa 70%, #2563eb 100%);
+            outline: none;
+        }
+        input[type=range].collar-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 3px solid #1e293b;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+        input[type=range].collar-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+
+        /* Sound Wave Bars Animation */
+        @keyframes sound-bar {
+            0%, 100% { transform: scaleY(0.25); }
+            50% { transform: scaleY(1); }
+        }
+        .sound-wave-bar {
+            animation: sound-bar 0.45s ease-in-out infinite;
+            transform-origin: bottom;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+    <!-- TOP NAVIGATION BAR & PART SWITCHER -->
+    <header class="lab-card z-30 px-4 py-2.5 border-b-2 border-slate-200 sticky top-0">
+        <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
+            <!-- Brand Title -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+                    <i class="fa-solid fa-fire-burner text-lg"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
+                            Bunsen Burner 3D Science Lab
+                        </h1>
+                        <span class="hidden md:inline-block text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-300">
+                            Form 1 Science
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-600 font-medium">
+                        Part 1: Safe Lighting Sequence • Part 2: Luminous vs. Non-luminous Flame
+                    </p>
+                </div>
+            </div>
+
+            <!-- MAIN MODE TABS (PART 1 vs PART 2) -->
+            <div class="flex items-center bg-slate-100 p-1.5 rounded-2xl border-2 border-slate-200 shadow-inner gap-1.5">
+                <button id="tab-btn-part1" onclick="switchLabMode('part1')" class="px-4 py-2 rounded-xl font-extrabold text-xs sm:text-sm transition flex items-center gap-2 bg-blue-600 text-white shadow-md">
+                    <span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs">1</span>
+                    <span>Part 1: Lighting a Bunsen Burner</span>
+                </button>
+                <button id="tab-btn-part2" onclick="switchLabMode('part2')" class="px-4 py-2 rounded-xl font-extrabold text-xs sm:text-sm transition flex items-center gap-2 text-slate-700 hover:bg-white">
+                    <span class="w-5 h-5 rounded-full bg-slate-300 text-slate-800 flex items-center justify-center text-xs">2</span>
+                    <span>Part 2: Luminous vs Non-luminous Flame</span>
+                </button>
+            </div>
+
+            <!-- Right Utility Buttons (Sound & Camera Reset) -->
+            <div class="flex items-center gap-2">
+                <button id="btn-audio-toggle" onclick="toggleBurnerSound()" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold text-slate-700 transition flex items-center gap-1.5 shadow-sm" title="Toggle realistic quiet/noisy burner sound">
+                    <i id="audio-icon" class="fa-solid fa-volume-xmark text-slate-500"></i>
+                    <span id="audio-label" class="hidden sm:inline">Sound: OFF</span>
+                </button>
+                <button onclick="resetCameraView()" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold text-slate-700 transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-video text-blue-600"></i>
+                    <span class="hidden sm:inline">Reset View</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE GRID -->
+    <main class="flex-1 max-w-[1600px] w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 p-3 sm:p-4 items-stretch">
+
+        <!-- LEFT COLUMN: 3D INTERACTIVE BUNSEN BURNER VIEWPORT (7 Cols on Desktop) -->
+        <div class="lg:col-span-7 flex flex-col gap-3">
+            <div class="flex-1 rounded-2xl overflow-hidden lab-card relative min-h-[430px] sm:min-h-[530px] flex flex-col border-2 border-sky-200">
+
+                <!-- Top-Left Floating Status Overlay -->
+                <div class="absolute top-3 left-3 right-3 z-20 flex flex-wrap justify-between items-start gap-2 pointer-events-none">
+                    <!-- Current Action / Flame Status Card -->
+                    <div class="bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-xl border-2 border-slate-200 shadow-md pointer-events-auto">
+                        <div id="hud-mode-subtitle" class="text-[10px] font-extrabold uppercase tracking-wider text-blue-700">
+                            PART 1 • STEP-BY-STEP LIGHTING ANIMATION
+                        </div>
+                        <div id="hud-main-status" class="text-base sm:text-lg font-extrabold text-slate-900 mt-0.5">
+                            Ready to Light (Gas OFF)
+                        </div>
+                    </div>
+
+                    <!-- Live Air Hole & Noise Status Pill -->
+                    <div class="flex flex-wrap items-center gap-2 pointer-events-auto">
+                        <!-- Textbook Pink Outline Toggle Button -->
+                        <button id="btn-outline-overlay" onclick="toggleOutlineOverlay()" class="px-3 py-2 rounded-xl bg-white/95 hover:bg-pink-50 border-2 border-pink-300 text-xs font-extrabold text-pink-700 shadow-md transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-pen-nib"></i>
+                            <span id="outline-btn-text">Show Flame Outline: OFF</span>
+                        </button>
+
+                        <!-- Camera Quick Zoom Buttons -->
+                        <div class="bg-white/95 backdrop-blur-md p-1 rounded-xl border-2 border-slate-200 shadow-md flex items-center gap-1">
+                            <button onclick="setCameraPreset('full')" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-blue-50 text-slate-800">Full</button>
+                            <button onclick="setCameraPreset('flame')" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-blue-50 text-slate-800">Flame</button>
+                            <button onclick="setCameraPreset('airhole')" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-blue-50 text-slate-800">Air Hole</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3D Three.js Canvas Wrapper -->
+                <div id="canvas-wrapper" class="flex-1 w-full h-full">
+                    
+                    <!-- SVG Overlay for Textbook Pink Hand-Drawn Flame Outlines (Matches Image 1!) -->
+                    <svg id="svg-flame-outlines" class="absolute inset-0 w-full h-full pointer-events-none z-10 hidden">
+                        <!-- Single or Left Luminous Flame Wavy Irregular Outline -->
+                        <g id="svg-outline-luminous" transform="translate(0,0)">
+                            <path d="M 0,0 C -18,-35 20,-70 -10,-105 C 12,-75 -8,-40 16,-15 C 26,-45 -5,-85 4,-130 C 28,-90 36,-45 12,0"
+                                  fill="rgba(200, 30, 104, 0.08)" stroke="#c81e68" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />
+                            <text x="0" y="-142" text-anchor="middle" fill="#c81e68" font-weight="800" font-size="13">irregular outline (yellow)</text>
+                        </g>
+
+                        <!-- Single or Right Non-luminous Flame Regular Teardrop Outline -->
+                        <g id="svg-outline-nonluminous" transform="translate(0,0)">
+                            <!-- Outer Regular Cone -->
+                            <path d="M -14,0 C -26,-42 -15,-85 0,-122 C 15,-85 26,-42 14,0 Z"
+                                  fill="rgba(200, 30, 104, 0.08)" stroke="#c81e68" stroke-width="3.2" stroke-linejoin="round" />
+                            <!-- Inner Unburnt Gas Cone -->
+                            <path d="M -9,0 L 0,-52 L 9,0"
+                                  fill="none" stroke="#2563eb" stroke-width="2" stroke-dasharray="4,3" />
+                            <text x="0" y="-134" text-anchor="middle" fill="#c81e68" font-weight="800" font-size="13">regular outline (blue)</text>
+                        </g>
+                    </svg>
+
+                    <!-- 3D Floating Anatomy & Comparison Labels -->
+                    <div id="tag-chimney" class="scene-tag px-2.5 py-1 rounded-lg bg-white/90 border border-slate-300 text-[11px] font-bold text-slate-800 shadow-sm">
+                        Chimney
+                    </div>
+                    <div id="tag-collar" class="scene-tag px-2.5 py-1 rounded-lg bg-amber-50/95 border-2 border-amber-400 text-[11px] font-extrabold text-amber-900 shadow-sm">
+                        Collar &amp; Air Hole: <span id="tag-airhole-state">CLOSED</span>
+                    </div>
+                    <div id="tag-gastap" class="scene-tag px-2.5 py-1 rounded-lg bg-yellow-50/95 border border-yellow-400 text-[11px] font-extrabold text-yellow-900 shadow-sm">
+                        Gas Tap: <span id="tag-gastap-state">OFF</span>
+                    </div>
+
+                    <!-- Side-by-Side Comparison Labels (Visible in Comparison Mode) -->
+                    <div id="tag-comp-left" class="scene-tag hidden px-3.5 py-1.5 rounded-xl bg-amber-50/95 border-2 border-amber-400 text-xs font-extrabold text-amber-950 shadow-md text-center">
+                        <div>Luminous flame</div>
+                        <div class="text-[11px] font-bold text-slate-700">(air hole closed)</div>
+                    </div>
+                    <div id="tag-comp-right" class="scene-tag hidden px-3.5 py-1.5 rounded-xl bg-blue-50/95 border-2 border-blue-400 text-xs font-extrabold text-blue-950 shadow-md text-center">
+                        <div>Non-luminous flame</div>
+                        <div class="text-[11px] font-bold text-slate-700">(air hole opened)</div>
+                    </div>
+                </div>
+
+                <!-- Bottom Live Telemetry Bar inside 3D Viewport -->
+                <div class="bg-white/95 border-t-2 border-slate-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 z-20">
+                    <!-- Flame Characteristics Summary Pills -->
+                    <div class="flex flex-wrap items-center gap-2 text-xs">
+                        <span class="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-300 font-bold text-slate-700">
+                            Air Hole: <strong id="bar-airhole" class="text-slate-900">Closed</strong>
+                        </span>
+                        <span class="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-300 font-bold text-slate-700">
+                            Shape: <strong id="bar-shape" class="pink-answer">—</strong>
+                        </span>
+                        <span class="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-300 font-bold text-slate-700">
+                            Colour: <strong id="bar-colour" class="pink-answer">—</strong>
+                        </span>
+                        <span class="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-300 font-bold text-slate-700 flex items-center gap-1.5">
+                            Noise: <strong id="bar-noise" class="pink-answer">—</strong>
+                            <span id="noise-bars" class="inline-flex items-end gap-0.5 h-3 ml-1">
+                                <span class="w-1 h-1.5 bg-slate-400 rounded-full"></span>
+                                <span class="w-1 h-1.5 bg-slate-400 rounded-full"></span>
+                                <span class="w-1 h-1.5 bg-slate-400 rounded-full"></span>
+                            </span>
+                        </span>
+                    </div>
+
+                    <div class="text-[11px] font-semibold text-slate-500">
+                        <i class="fa-solid fa-hand-pointer text-blue-600 mr-1"></i>Drag to rotate 3D • Scroll to zoom
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: DYNAMIC PANEL FOR PART 1 OR PART 2 (5 Cols on Desktop) -->
+        <div class="lg:col-span-5 flex flex-col gap-4 justify-between">
+
+            <!-- =========================================================================
+                 PART 1 PANEL: LIGHTING A BUNSEN BURNER (MATCHING IMAGE 2)
+                 ========================================================================= -->
+            <div id="panel-part1" class="flex flex-col gap-3.5 h-full justify-between">
+
+                <!-- Card 1A: Textbook Question 3a & Interactive 5-Step Animation Player -->
+                <div class="lab-card rounded-2xl p-4 sm:p-5 border-2 border-purple-200 bg-gradient-to-b from-purple-50/50 to-white">
+                    <!-- Level 2 Badge from Image 2 -->
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="px-3 py-0.5 rounded-r-full bg-indigo-500 text-white font-extrabold text-xs tracking-wide shadow-sm -ml-5 pl-5">
+                            Level 2
+                        </span>
+                        <div class="flex items-center gap-1.5">
+                            <button id="btn-auto-play" onclick="playFullLightingSequence()" class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-md transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-play"></i>
+                                <span>Play All 5 Steps</span>
+                            </button>
+                            <button onclick="resetLightingSimulation()" class="px-2.5 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition" title="Reset Burner">
+                                <i class="fa-solid fa-rotate-left"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Textbook Question Header -->
+                    <div class="flex items-start gap-2 mb-3">
+                        <span class="font-extrabold text-sm text-slate-900">3</span>
+                        <span onclick="revealOrderingAnswer()" class="red-key-badge mt-0.5" title="Click to reveal textbook answer">
+                            <i class="fa-solid fa-key"></i>
+                        </span>
+                        <span class="font-extrabold text-sm text-slate-900">a</span>
+                        <p class="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                            Below are the main steps of lighting a Bunsen burner. Arrange them in the correct order.
+                            <span class="text-xs font-normal text-slate-500 block mt-0.5">(Click any statement (1)–(5) to fill the blanks below, or use Next Step ▶ to animate!)</span>
+                        </p>
+                    </div>
+
+                    <!-- The 5 Textbook Statements in Original Textbook Order (1) to (5) - NO SPOILERS! -->
+                    <div class="space-y-2 text-xs sm:text-sm">
+                        <!-- Statement (1) -->
+                        <div id="stmt-card-1" onclick="handleStatementClick(1)" class="cursor-pointer p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-blue-400 transition flex items-center justify-between gap-2 shadow-sm">
+                            <div class="flex items-center gap-2.5">
+                                <span class="w-7 h-7 rounded-lg bg-slate-100 border border-slate-300 font-extrabold text-slate-800 flex items-center justify-center shrink-0">(1)</span>
+                                <span class="font-semibold text-slate-800">Turn on the gas tap.</span>
+                            </div>
+                            <span id="stmt-badge-1" class="hidden px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-extrabold text-[11px] shrink-0">4th Step</span>
+                        </div>
+
+                        <!-- Statement (2) -->
+                        <div id="stmt-card-2" onclick="handleStatementClick(2)" class="cursor-pointer p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-blue-400 transition flex items-center justify-between gap-2 shadow-sm">
+                            <div class="flex items-center gap-2.5">
+                                <span class="w-7 h-7 rounded-lg bg-slate-100 border border-slate-300 font-extrabold text-slate-800 flex items-center justify-center shrink-0">(2)</span>
+                                <span class="font-semibold text-slate-800">Open the air hole.</span>
+                            </div>
+                            <span id="stmt-badge-2" class="hidden px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-extrabold text-[11px] shrink-0">5th Step</span>
+                        </div>
+
+                        <!-- Statement (3) -->
+                        <div id="stmt-card-3" onclick="handleStatementClick(3)" class="cursor-pointer p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-blue-400 transition flex items-center justify-between gap-2 shadow-sm">
+                            <div class="flex items-center gap-2.5">
+                                <span class="w-7 h-7 rounded-lg bg-slate-100 border border-slate-300 font-extrabold text-slate-800 flex items-center justify-center shrink-0">(3)</span>
+                                <span class="font-semibold text-slate-800">Close the air hole.</span>
+                            </div>
+                            <span id="stmt-badge-3" class="hidden px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-extrabold text-[11px] shrink-0">1st Step</span>
+                        </div>
+
+                        <!-- Statement (4) -->
+                        <div id="stmt-card-4" onclick="handleStatementClick(4)" class="cursor-pointer p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-blue-400 transition flex items-center justify-between gap-2 shadow-sm">
+                            <div class="flex items-center gap-2.5">
+                                <span class="w-7 h-7 rounded-lg bg-slate-100 border border-slate-300 font-extrabold text-slate-800 flex items-center justify-center shrink-0">(4)</span>
+                                <span class="font-semibold text-slate-800">Press the button on the gas lighter.</span>
+                            </div>
+                            <span id="stmt-badge-4" class="hidden px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-extrabold text-[11px] shrink-0">3rd Step</span>
+                        </div>
+
+                        <!-- Statement (5) -->
+                        <div id="stmt-card-5" onclick="handleStatementClick(5)" class="cursor-pointer p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-blue-400 transition flex items-center justify-between gap-2 shadow-sm">
+                            <div class="flex items-center gap-2.5">
+                                <span class="w-7 h-7 rounded-lg bg-slate-100 border border-slate-300 font-extrabold text-slate-800 flex items-center justify-center shrink-0">(5)</span>
+                                <span class="font-semibold text-slate-800">Put the tip of a gas lighter over the chimney.</span>
+                            </div>
+                            <span id="stmt-badge-5" class="hidden px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-extrabold text-[11px] shrink-0">2nd Step</span>
+                        </div>
+                    </div>
+
+                    <!-- Step-by-Step Prev / Next Controls -->
+                    <div class="flex items-center justify-between mt-3 pt-3 border-t border-purple-200">
+                        <button onclick="stepLightingRelative(-1)" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold text-slate-700">
+                            <i class="fa-solid fa-backward-step mr-1"></i> Previous Step
+                        </button>
+                        <span id="lighting-step-indicator" class="text-xs font-extrabold text-purple-900">
+                            Step 0 of 5
+                        </span>
+                        <button onclick="stepLightingRelative(1)" class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold shadow-sm">
+                            Next Step <i class="fa-solid fa-forward-step ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Card 1B: Interactive Blank-Filling Answer Chain (Starts EMPTY without spoilers!) -->
+                <div class="lab-card rounded-2xl p-4 border-2 border-purple-200 bg-purple-50/40">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                        <span class="text-xs font-extrabold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                            <i class="fa-solid fa-list-ol text-purple-600"></i>
+                            Textbook Answer Chain (3 marks)
+                        </span>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="clearOrderingSlots()" class="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-[11px] font-bold text-slate-700">
+                                Clear Blanks
+                            </button>
+                            <button onclick="revealOrderingAnswer()" class="px-2.5 py-1 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-[11px] font-extrabold flex items-center gap-1 shadow-sm">
+                                <i class="fa-solid fa-key text-[10px]"></i> Show Answer
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- The 5 Blank Slots matching Image 2 (Empty by default!) -->
+                    <div class="flex items-center justify-between gap-1 sm:gap-2 my-2 bg-white p-3 rounded-xl border border-purple-200 shadow-inner">
+                        <button id="slot-0" onclick="selectBlankSlot(0)" class="flex-1 py-2 border-b-2 border-slate-800 text-center text-base sm:text-lg font-bold text-blue-600 bg-blue-50/50 hover:bg-pink-50 rounded-t transition">?</button>
+                        <i class="fa-solid fa-arrow-right-long text-slate-700 text-xs sm:text-sm"></i>
+                        <button id="slot-1" onclick="selectBlankSlot(1)" class="flex-1 py-2 border-b-2 border-slate-800 text-center text-base sm:text-lg font-bold text-slate-400 hover:bg-pink-50 rounded-t transition">___</button>
+                        <i class="fa-solid fa-arrow-right-long text-slate-700 text-xs sm:text-sm"></i>
+                        <button id="slot-2" onclick="selectBlankSlot(2)" class="flex-1 py-2 border-b-2 border-slate-800 text-center text-base sm:text-lg font-bold text-slate-400 hover:bg-pink-50 rounded-t transition">___</button>
+                        <i class="fa-solid fa-arrow-right-long text-slate-700 text-xs sm:text-sm"></i>
+                        <button id="slot-3" onclick="selectBlankSlot(3)" class="flex-1 py-2 border-b-2 border-slate-800 text-center text-base sm:text-lg font-bold text-slate-400 hover:bg-pink-50 rounded-t transition">___</button>
+                        <i class="fa-solid fa-arrow-right-long text-slate-700 text-xs sm:text-sm"></i>
+                        <button id="slot-4" onclick="selectBlankSlot(4)" class="flex-1 py-2 border-b-2 border-slate-800 text-center text-base sm:text-lg font-bold text-slate-400 hover:bg-pink-50 rounded-t transition">___</button>
+                    </div>
+
+                    <!-- Number Picker Buttons for Student Self-Test -->
+                    <div id="number-picker-row" class="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-purple-200/60">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs font-bold text-slate-600 mr-1">Tap (1)–(5):</span>
+                            <button onclick="inputSlotNumber(1)" class="w-7 h-7 rounded-lg bg-white hover:bg-blue-50 border-2 border-slate-300 font-extrabold text-xs text-slate-800">(1)</button>
+                            <button onclick="inputSlotNumber(2)" class="w-7 h-7 rounded-lg bg-white hover:bg-blue-50 border-2 border-slate-300 font-extrabold text-xs text-slate-800">(2)</button>
+                            <button onclick="inputSlotNumber(3)" class="w-7 h-7 rounded-lg bg-white hover:bg-blue-50 border-2 border-slate-300 font-extrabold text-xs text-slate-800">(3)</button>
+                            <button onclick="inputSlotNumber(4)" class="w-7 h-7 rounded-lg bg-white hover:bg-blue-50 border-2 border-slate-300 font-extrabold text-xs text-slate-800">(4)</button>
+                            <button onclick="inputSlotNumber(5)" class="w-7 h-7 rounded-lg bg-white hover:bg-blue-50 border-2 border-slate-300 font-extrabold text-xs text-slate-800">(5)</button>
+                        </div>
+                        <span id="order-feedback-badge" class="text-xs font-extrabold text-slate-500">Fill all 5 blanks!</span>
+                    </div>
+
+                    <!-- Scientific Safety Explanation Box (No upfront answer spoiler!) -->
+                    <div id="part1-safety-box" class="mt-2.5 p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 flex items-start gap-2">
+                        <i class="fa-solid fa-shield-halved text-amber-600 text-sm mt-0.5"></i>
+                        <div id="part1-safety-text" class="leading-relaxed">
+                            <strong>Before starting:</strong> Check that the gas tap is OFF, and notice the air hole is currently open. Click the statements in the right order or press <strong>Next Step ▶</strong> to watch the safe lighting procedure!
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- =========================================================================
+                 PART 2 PANEL: LUMINOUS VS NON-LUMINOUS FLAME & RESULTS TABLE (IMAGE 1)
+                 ========================================================================= -->
+            <div id="panel-part2" class="hidden flex-col gap-3.5 h-full justify-between">
+
+                <!-- Card 2A: Interactive Air Hole & Comparison Mode Controller -->
+                <div class="lab-card rounded-2xl p-4 border-2 border-sky-200">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <h2 class="text-sm font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-blue-600"></i>
+                            Air Hole &amp; Flame Comparison Control
+                        </h2>
+
+                        <!-- Side-by-Side Comparison Toggle Button -->
+                        <button id="btn-compare-mode" onclick="toggleSideBySideComparison()" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-xs shadow-md transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-table-columns"></i>
+                            <span id="compare-btn-text">Side-by-Side Comparison: OFF</span>
+                        </button>
+                    </div>
+
+                    <!-- Two Big Flame Preset Buttons -->
+                    <div class="grid grid-cols-2 gap-2.5 mb-3">
+                        <button id="btn-preset-luminous" onclick="setAirHoleOpenness(0)" class="p-3 rounded-xl border-2 border-amber-400 bg-amber-50 hover:bg-amber-100 transition flex flex-col items-center text-center shadow-sm">
+                            <div class="flex items-center gap-1.5 font-extrabold text-xs sm:text-sm text-amber-950">
+                                <span class="w-3 h-3 rounded-full bg-amber-400 border border-amber-600 inline-block"></span>
+                                <span>Luminous Flame</span>
+                            </div>
+                            <span class="text-[11px] font-bold text-amber-800 mt-0.5">(air hole closed)</span>
+                            <span class="text-[10px] text-slate-600 mt-1">Irregular • Yellow • Quiet</span>
+                        </button>
+
+                        <button id="btn-preset-nonluminous" onclick="setAirHoleOpenness(1)" class="p-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-blue-50 transition flex flex-col items-center text-center shadow-sm">
+                            <div class="flex items-center gap-1.5 font-extrabold text-xs sm:text-sm text-blue-950">
+                                <span class="w-3 h-3 rounded-full bg-blue-500 border border-blue-700 inline-block"></span>
+                                <span>Non-luminous Flame</span>
+                            </div>
+                            <span class="text-[11px] font-bold text-blue-800 mt-0.5">(air hole opened)</span>
+                            <span class="text-[10px] text-slate-600 mt-1">Regular • Blue • Noisy</span>
+                        </button>
+                    </div>
+
+                    <!-- Continuous Collar Slider -->
+                    <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                        <div class="flex justify-between text-xs font-extrabold mb-1.5">
+                            <span class="text-amber-700">🔒 Air Hole Closed (0%)</span>
+                            <span id="collar-pct-label" class="text-slate-800 font-mono">0% Opened</span>
+                            <span class="text-blue-700">🔓 Air Hole Opened (100%)</span>
+                        </div>
+                        <input id="airhole-slider" type="range" min="0" max="1" step="0.01" value="0" class="collar-slider" oninput="setAirHoleOpenness(parseFloat(this.value))">
+                    </div>
+                </div>
+
+                <!-- Card 2B: Exact Textbook "Results" Table (Matching Image 1) -->
+                <div class="textbook-results-card p-4 flex-1 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="text-base sm:text-lg font-black tracking-tight" style="color: #8b005d;">
+                                Results
+                            </h3>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-[11px] text-slate-500 hidden sm:inline">Click any <span class="red-key-badge scale-75"><i class="fa-solid fa-key"></i></span> or:</span>
+                                <button onclick="toggleAllTableAnswers()" class="px-2.5 py-1 rounded-lg bg-pink-50 hover:bg-pink-100 border border-pink-300 text-xs font-extrabold text-pink-800 transition flex items-center gap-1">
+                                    <i class="fa-solid fa-key text-red-600"></i>
+                                    <span id="btn-reveal-all-text">Hide / Quiz Answers</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Textbook Comparison Table -->
+                        <div class="overflow-x-auto">
+                            <table class="w-full border-collapse border-2 border-slate-700 text-xs sm:text-sm">
+                                <thead>
+                                    <tr class="bg-slate-50">
+                                        <th class="border border-slate-700 p-2 text-left w-[36%]"></th>
+                                        <th onclick="setAirHoleOpenness(0)" class="border border-slate-700 p-2 text-center w-[32%] cursor-pointer hover:bg-amber-50/70 transition">
+                                            <div class="font-extrabold text-slate-900">Luminous flame</div>
+                                            <div class="font-bold text-slate-700 text-[11px]">(air hole closed)</div>
+                                        </th>
+                                        <th onclick="setAirHoleOpenness(1)" class="border border-slate-700 p-2 text-center w-[32%] cursor-pointer hover:bg-blue-50/70 transition">
+                                            <div class="font-extrabold text-slate-900">Non-luminous flame</div>
+                                            <div class="font-bold text-slate-700 text-[11px]">(air hole opened)</div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Row 1: Appearance of flame (Draw the outline of the flame) -->
+                                    <tr>
+                                        <td class="border border-slate-700 p-2.5 align-top font-medium text-slate-900">
+                                            <div>Appearance of flame</div>
+                                            <div class="text-[11px] text-slate-600 mt-0.5">(Draw the outline of the flame)</div>
+                                            <button onclick="toggleOutlineOverlay()" class="mt-2 px-2 py-1 rounded bg-pink-50 hover:bg-pink-100 border border-pink-300 text-[10px] font-bold text-pink-700 block">
+                                                <i class="fa-solid fa-eye mr-1"></i>Overlay on 3D
+                                            </button>
+                                        </td>
+                                        <!-- Luminous Flame Drawing Cell -->
+                                        <td class="border border-slate-700 p-2 text-center relative align-bottom">
+                                            <span onclick="toggleCellAnswer('draw-lum')" class="red-key-badge absolute left-1.5 top-1/2 -translate-y-1/2" title="Toggle outline"><i class="fa-solid fa-key"></i></span>
+                                            <div class="flex flex-col items-center justify-end h-28">
+                                                <!-- SVG Textbook Pink Wavy Flame Outline + Chimney -->
+                                                <svg viewBox="0 0 100 120" class="w-20 h-24">
+                                                    <g id="ans-draw-lum">
+                                                        <path d="M 44,55 C 34,40 56,26 42,14 C 50,24 41,38 54,48 C 60,34 45,18 50,4 C 62,18 65,38 54,55"
+                                                              fill="rgba(253, 224, 71, 0.25)" stroke="#c81e68" stroke-width="2.4" stroke-linecap="round" />
+                                                    </g>
+                                                    <!-- Chimney & Base Diagram -->
+                                                    <rect x="44" y="55" width="10" height="42" fill="#94a3b8" stroke="#334155" stroke-width="1.5"/>
+                                                    <rect x="43" y="83" width="12" height="12" fill="#cbd5e1" stroke="#334155" stroke-width="1.5"/>
+                                                    <!-- Closed Air Hole -->
+                                                    <circle cx="49" cy="89" r="2.2" fill="#64748b"/>
+                                                    <path d="M 30,112 C 32,98 66,98 68,112 Z" fill="#1d4ed8" stroke="#1e3a8a" stroke-width="1.5"/>
+                                                </svg>
+                                                <span class="text-[10px] font-semibold text-slate-700">air hole closed</span>
+                                            </div>
+                                        </td>
+                                        <!-- Non-luminous Flame Drawing Cell -->
+                                        <td class="border border-slate-700 p-2 text-center relative align-bottom">
+                                            <span onclick="toggleCellAnswer('draw-nonlum')" class="red-key-badge absolute left-1.5 top-1/2 -translate-y-1/2" title="Toggle outline"><i class="fa-solid fa-key"></i></span>
+                                            <div class="flex flex-col items-center justify-end h-28">
+                                                <!-- SVG Textbook Pink Regular Flame Outline + Chimney -->
+                                                <svg viewBox="0 0 100 120" class="w-20 h-24">
+                                                    <g id="ans-draw-nonlum">
+                                                        <path d="M 44,55 C 37,36 42,18 49,5 C 56,18 61,36 54,55"
+                                                              fill="rgba(96, 165, 250, 0.2)" stroke="#c81e68" stroke-width="2.4" stroke-linejoin="round" />
+                                                    </g>
+                                                    <!-- Chimney & Base Diagram -->
+                                                    <rect x="44" y="55" width="10" height="42" fill="#94a3b8" stroke="#334155" stroke-width="1.5"/>
+                                                    <rect x="43" y="83" width="12" height="12" fill="#cbd5e1" stroke="#334155" stroke-width="1.5"/>
+                                                    <!-- Opened Air Hole -->
+                                                    <circle cx="49" cy="89" r="2.8" fill="#0f172a"/>
+                                                    <path d="M 30,112 C 32,98 66,98 68,112 Z" fill="#1d4ed8" stroke="#1e3a8a" stroke-width="1.5"/>
+                                                </svg>
+                                                <span class="text-[10px] font-semibold text-slate-700">air hole opened</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Row 2: Shape of flame (regular / irregular) -->
+                                    <tr>
+                                        <td class="border border-slate-700 p-2.5 font-medium text-slate-900">
+                                            Shape of flame (regular / irregular)
+                                        </td>
+                                        <td onclick="toggleCellAnswer('shape-lum')" class="border border-slate-700 p-2.5 text-center relative cursor-pointer hover:bg-pink-50/40">
+                                            <span class="red-key-badge absolute left-1.5 top-1/2 -translate-y-1/2"><i class="fa-solid fa-key"></i></span>
+                                            <span id="ans-shape-lum" class="pink-answer">irregular</span>
+                                        </td>
+                                        <td onclick="toggleCellAnswer('shape-nonlum')" class="border border-slate-700 p-2.5 text-center relative cursor-pointer hover:bg-pink-50/40">
+                                            <span class="red-key-badge absolute left-1.5 top-1/2 -translate-y-1/2"><i class="fa-solid fa-key"></i></span>
+                                            <span id="ans-shape-nonlum" class="pink-answer">regular</span>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Row 3: Colour of flame -->
+                                    <tr>
+                                        <td class="border border-slate-700 p-2.5 font-medium text-slate-900">
+                                            Colour of flame
+                                        </td>
+                                        <td onclick="toggleCellAnswer('col-lum')" class="border border-slate-700 p-2.5 text-center relative cursor-pointer hover:bg-pink-50/40">
+                                            <span class="red-key-badge absolute left-1.5 top-1/2 -translate-y-1/2"><i class="fa-solid fa-key"></i></span>
+                                            <span id="ans-col-lum" class="pink-answer">yellow</span>
+                                        </td>
+                                        <td onclick="toggleCellAnswer('col-nonlum')" class="border border-slate-700 p-2.5 text-center relative cursor-pointer hover:bg-pink-50/40">
+                                            <span class="red-key-badge absolute left-1.5 top-1/2 -translate-y-1/2"><i class="fa-solid fa-key"></i></span>
+                                            <span id="ans-col-nonlum" class="pink-answer">blue</span>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Row 4: Noise of burner (quiet / noisy) -->
+                                    <tr>
+                                        <td class="border border-slate-700 p-2.5 font-medium text-slate-900">
+                                            Noise of burner (quiet / noisy)
+                                        </td>
+                                        <td onclick="toggleCellAnswer('noise-lum')" class="border border-slate-700 p-2.5 text-center relative cursor-pointer hover:bg-pink-50/40">
+                                            <span class="red-key-badge absolute left-1.5 top-1/2 -translate-y-1/2"><i class="fa-solid fa-key"></i></span>
+                                            <span id="ans-noise-lum" class="pink-answer">quiet</span>
+                                        </td>
+                                        <td onclick="toggleCellAnswer('noise-nonlum')" class="border border-slate-700 p-2.5 text-center relative cursor-pointer hover:bg-pink-50/40">
+                                            <span class="red-key-badge absolute left-1.5 top-1/2 -translate-y-1/2"><i class="fa-solid fa-key"></i></span>
+                                            <span id="ans-noise-nonlum" class="pink-answer">noisy</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Classroom Tip Footer -->
+                    <div class="mt-3 p-2.5 rounded-xl bg-purple-50 border border-purple-200 text-xs text-purple-950 flex items-center justify-between gap-2">
+                        <span><strong>Temperature Note:</strong> The blue <strong>non-luminous flame</strong> is hotter and clean, so it is used for heating in the lab!</span>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </main>
+
+    <!-- =========================================================================
+         APPLICATION & 3D BUNSEN BURNER SIMULATION JAVASCRIPT
+         ========================================================================= -->
+    <script>
+        /********************************************************************
+         * 1. STATE VARIABLES & CONFIGURATION
+         ********************************************************************/
+        let currentLabMode = 'part1'; // 'part1' (Lighting) | 'part2' (Flame Comparison)
+        let isSideBySide = false;
+        let showPinkOutlines = false;
+
+        // Burner State (Main / Left Burner)
+        let gasTapOpen = false;
+        let flameLit = false;
+        let airHoleOpenness = 0.0; // 0.0 = Closed (Luminous), 1.0 = Opened (Non-luminous)
+        let targetAirHoleOpenness = 0.0;
+
+        // Part 1 Lighting Sequence State
+        let currentLightingStep = 0; // 0 = Reset, 1=(3) Close air hole, 2=(5) Lighter over chimney, 3=(4) Press button, 4=(1) Turn on gas tap, 5=(2) Open air hole
+        let autoPlayTimers = [];
+        let lighterTargetPos = new THREE.Vector3(-4.8, 1.2, 1.5);
+        let lighterTargetRotZ = 0.35;
+        let lighterButtonPressed = 0;
+        let sparkIntensity = 0;
+
+        // Three.js Globals
+        let scene, camera, renderer;
+        let mainBurner, secondBurner; // Each burner is a structured object with animated parts
+        let gasTapGroup, gasTapHandleMesh;
+        let lighterGroup, lighterBtnMesh, sparkGroup;
+
+        // Camera Orbit Controls
+        let isDragging = false;
+        let prevMouse = { x: 0, y: 0 };
+        let camSpherical = { radius: 14.5, theta: 0.18, phi: 1.32 };
+        let targetSpherical = { radius: 14.5, theta: 0.18, phi: 1.32 };
+        let camLookAt = new THREE.Vector3(0, 2.8, 0);
+        let targetLookAt = new THREE.Vector3(0, 2.8, 0);
+
+        // Web Audio API Synthesizer for Burner Noise (Quiet vs Noisy Roar)
+        let audioCtx = null;
+        let noiseGainNode = null;
+        let noiseFilterNode = null;
+        let soundEnabled = false;
+
+        /********************************************************************
+         * 2. INITIALIZE THREE.JS BRIGHT LABORATORY SCENE
+         ********************************************************************/
+        function initThreeLab() {
+            const container = document.getElementById('canvas-wrapper');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 150);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // Bright Studio Lighting so all burner details are crisp
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.88);
+            scene.add(ambientLight);
+
+            const mainDirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+            mainDirLight.position.set(10, 18, 14);
+            scene.add(mainDirLight);
+
+            const rimLight = new THREE.DirectionalLight(0xe0f2fe, 0.5);
+            rimLight.position.set(-12, 8, -10);
+            scene.add(rimLight);
+
+            // Clean Bright Laboratory Bench Top & Heatproof Mat
+            buildLabBench();
+
+            // Build Lab Yellow Gas Tap on the right rear of the bench
+            buildGasTap();
+
+            // Build Main Bunsen Burner (Center in Single Mode, Left in Comparison Mode)
+            mainBurner = createBunsenBurnerAssembly(true);
+            scene.add(mainBurner.root);
+
+            // Build Second Bunsen Burner (Hidden in Single Mode, Right in Comparison Mode)
+            secondBurner = createBunsenBurnerAssembly(false);
+            secondBurner.root.position.set(3.4, 0, 0);
+            secondBurner.root.visible = false;
+            scene.add(secondBurner.root);
+
+            // Build 3D Piezo Gas Lighter (Used in Part 1 Steps 2 & 3)
+            buildGasLighter();
+
+            // Setup Mouse/Touch Orbit Controls
+            setupCameraControls(renderer.domElement);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function buildLabBench() {
+            // Light maple/white lab bench surface
+            const benchGeo = new THREE.BoxGeometry(28, 0.6, 16);
+            const benchMat = new THREE.MeshStandardMaterial({
+                color: 0xf1f5f9,
+                roughness: 0.4,
+                metalness: 0.05
+            });
+            const benchMesh = new THREE.Mesh(benchGeo, benchMat);
+            benchMesh.position.set(0, -0.3, 0);
+            scene.add(benchMesh);
+
+            // Heatproof Mat under burner
+            const matGeo = new THREE.BoxGeometry(13.5, 0.08, 6.5);
+            const matMaterial = new THREE.MeshStandardMaterial({
+                color: 0xe2e8f0,
+                roughness: 0.8
+            });
+            const heatMat = new THREE.Mesh(matGeo, matMaterial);
+            heatMat.position.set(0, 0.04, 0);
+            scene.add(heatMat);
+        }
+
+        function buildGasTap() {
+            gasTapGroup = new THREE.Group();
+            gasTapGroup.position.set(4.6, 0.08, -1.4);
+            scene.add(gasTapGroup);
+
+            // Brass/Grey Turret Base on Bench
+            const turretMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.35, metalness: 0.6 });
+            const turret = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.6, 1.1, 24), turretMat);
+            turret.position.y = 0.55;
+            gasTapGroup.add(turret);
+
+            // Spout pointing toward burner
+            const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.9, 16), turretMat);
+            spout.rotation.z = Math.PI / 2;
+            spout.position.set(-0.55, 0.65, 0.25);
+            gasTapGroup.add(spout);
+
+            // Yellow Lab Gas Tap Lever Handle (Rotates 90 deg when turned ON)
+            const handleMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.3, metalness: 0.2 });
+            gasTapHandleMesh = new THREE.Group();
+            gasTapHandleMesh.position.set(0, 1.2, 0);
+
+            const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.25, 20), handleMat);
+            gasTapHandleMesh.add(cap);
+
+            const lever = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.2, 1.25), handleMat);
+            lever.position.z = 0.45;
+            gasTapHandleMesh.add(lever);
+
+            gasTapGroup.add(gasTapHandleMesh);
+        }
+
+        function buildGasLighter() {
+            lighterGroup = new THREE.Group();
+            lighterGroup.position.copy(lighterTargetPos);
+            lighterGroup.rotation.z = lighterTargetRotZ;
+            scene.add(lighterGroup);
+
+            // Plastic Handle Body (Blue/Slate)
+            const handleMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.35 });
+            const handleMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 2.2, 20), handleMat);
+            lighterGroup.add(handleMesh);
+
+            // Red Piezo Trigger Button on the side/top of handle
+            const btnMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 });
+            lighterBtnMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.45, 16), btnMat);
+            lighterBtnMesh.rotation.z = Math.PI / 2;
+            lighterBtnMesh.position.set(0.24, 0.35, 0);
+            lighterGroup.add(lighterBtnMesh);
+
+            // Long Metal Igniter Rod extending toward chimney tip
+            const rodMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.25, metalness: 0.8 });
+            const rodMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 2.5, 16), rodMat);
+            rodMesh.position.y = 2.25;
+            lighterGroup.add(rodMesh);
+
+            // Igniter Tip Hood
+            const tipHood = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.12, 0.35, 16), rodMat);
+            tipHood.position.y = 3.5;
+            lighterGroup.add(tipHood);
+
+            // Spark Burst Particles at the Tip of the Gas Lighter
+            sparkGroup = new THREE.Group();
+            sparkGroup.position.set(0, 3.65, 0);
+            const sparkMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+            for (let i = 0; i < 8; i++) {
+                const sRay = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.45, 6), sparkMat);
+                const angle = (i / 8) * Math.PI * 2;
+                sRay.rotation.z = angle;
+                sRay.position.set(Math.cos(angle) * 0.2, Math.sin(angle) * 0.2, 0);
+                sparkGroup.add(sRay);
+            }
+            sparkGroup.visible = false;
+            lighterGroup.add(sparkGroup);
+        }
+
+        /********************************************************************
+         * 3. CREATE 3D BUNSEN BURNER & DYNAMIC VERTEX-ANIMATED FLAME
+         ********************************************************************/
+        function createBunsenBurnerAssembly(withLongHose) {
+            const root = new THREE.Group();
+
+            // 1. Royal Blue Enamel Cast-Iron Base (Matching Image 1's blue base!)
+            const baseMat = new THREE.MeshStandardMaterial({
+                color: 0x1d4ed8,
+                roughness: 0.28,
+                metalness: 0.25
+            });
+            const baseRim = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.6, 0.22, 36), baseMat);
+            baseRim.position.y = 0.19;
+            root.add(baseRim);
+
+            const baseDome = new THREE.Mesh(new THREE.ConeGeometry(1.42, 0.55, 36), baseMat);
+            baseDome.position.y = 0.57;
+            root.add(baseDome);
+
+            const baseNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.52, 0.5, 28), baseMat);
+            baseNeck.position.y = 0.9;
+            root.add(baseNeck);
+
+            // 2. Dark Interior Core inside the Air Hole (so when air hole opens, you see dark cavity & gas jet)
+            const darkCoreMat = new THREE.MeshBasicMaterial({ color: 0x090d16 });
+            const darkCore = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.2, 20), darkCoreMat);
+            darkCore.position.y = 1.45;
+            root.add(darkCore);
+
+            // Tiny Brass Gas Jet Nozzle visible inside open air hole
+            const jetMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.7, roughness: 0.3 });
+            const jetMesh = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.42, 16), jetMat);
+            jetMesh.position.y = 1.28;
+            root.add(jetMesh);
+
+            // 3. Chrome Metal Chimney (Barrel)
+            const chromeMat = new THREE.MeshStandardMaterial({
+                color: 0xe2e8f0,
+                roughness: 0.18,
+                metalness: 0.82
+            });
+            // Upper Chimney above collar
+            const chimneyMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 3.0, 32), chromeMat);
+            chimneyMesh.position.y = 3.2;
+            root.add(chimneyMesh);
+
+            // Lower Chimney Wall at the air hole level (y = 1.45) with a fixed front cutout window around theta = 0 (+Z)
+            const chimneyLowerWall = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.32, 0.32, 0.82, 32, 1, true, 0.48, Math.PI * 2 - 0.96),
+                chromeMat
+            );
+            chimneyLowerWall.position.y = 1.45;
+            root.add(chimneyLowerWall);
+
+            // Top Burner Rim (Dark inner opening)
+            const topOpening = new THREE.Mesh(new THREE.CircleGeometry(0.27, 24), darkCoreMat);
+            topOpening.rotation.x = -Math.PI / 2;
+            topOpening.position.y = 4.71;
+            root.add(topOpening);
+
+            // 4. Air Hole Window & Rotating Collar Sleeve (FIXED GEOMETRY!)
+            // In Three.js CylinderGeometry, theta = 0 is directly at the front (+Z).
+            // Our collarSleeve has a 55-degree OPEN GAP centered at theta = 0 (from -0.48 to +0.48 rad)
+            // and a SOLID METALLIC WALL everywhere else.
+            // - When air hole is OPENED (openness = 1): collarGroup.rotation.y = 0 -> the collar's open gap aligns with +Z, exposing the dark inner cavity & brass jet!
+            // - When air hole is CLOSED (openness = 0): collarGroup.rotation.y = -1.35 -> the collar's solid metal wall rotates over +Z, 100% sealing the air hole!
+            const collarGroup = new THREE.Group();
+            collarGroup.position.y = 1.45;
+
+            const collarMat = new THREE.MeshStandardMaterial({
+                color: 0xcbd5e1,
+                roughness: 0.22,
+                metalness: 0.72,
+                side: THREE.DoubleSide
+            });
+
+            // C-shaped collar sleeve with open window at theta = 0 (+Z) and solid metal body around the rest
+            const collarSleeve = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.38, 0.38, 0.78, 36, 1, false, 0.48, Math.PI * 2 - 0.96),
+                collarMat
+            );
+            collarGroup.add(collarSleeve);
+
+            // Top & bottom collar rings framing the air hole window
+            const collarTopRing = new THREE.Mesh(new THREE.CylinderGeometry(0.39, 0.39, 0.13, 32), collarMat);
+            collarTopRing.position.y = 0.34;
+            collarGroup.add(collarTopRing);
+
+            const collarBotRing = new THREE.Mesh(new THREE.CylinderGeometry(0.39, 0.39, 0.13, 32), collarMat);
+            collarBotRing.position.y = -0.34;
+            collarGroup.add(collarBotRing);
+
+            // Grip handle/knob attached to the collar so students clearly see the collar rotating
+            const knobStem = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.045, 0.045, 0.28, 12),
+                new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.5 })
+            );
+            knobStem.rotation.z = Math.PI / 2;
+            knobStem.position.set(0.46, 0, 0.22);
+            collarGroup.add(knobStem);
+
+            const knobTip = new THREE.Mesh(
+                new THREE.SphereGeometry(0.085, 14, 14),
+                new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.3 })
+            );
+            knobTip.position.set(0.58, 0, 0.22);
+            collarGroup.add(knobTip);
+
+            root.add(collarGroup);
+
+            // 5. Side Metal Gas Inlet Pipe & Black Rubber Hose (Matching Image 1)
+            const inletPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.75, 16), chromeMat);
+            inletPipe.rotation.z = Math.PI / 2;
+            inletPipe.position.set(0.65, 0.75, 0);
+            root.add(inletPipe);
+
+            // Silver Hose Clamp
+            const clamp = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.04, 10, 24), chromeMat);
+            clamp.rotation.y = Math.PI / 2;
+            clamp.position.set(0.95, 0.75, 0);
+            root.add(clamp);
+
+            // Black Rubber Gas Tubing
+            const hoseMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.75 });
+            let hoseCurve;
+            if (withLongHose) {
+                hoseCurve = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(0.9, 0.75, 0),
+                    new THREE.Vector3(2.2, 0.55, -0.3),
+                    new THREE.Vector3(3.4, 0.45, -0.9),
+                    new THREE.Vector3(4.05, 0.72, -1.15)
+                ]);
+            } else {
+                hoseCurve = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(0.9, 0.75, 0),
+                    new THREE.Vector3(2.1, 0.62, 0)
+                ]);
+            }
+            const hoseMesh = new THREE.Mesh(new THREE.TubeGeometry(hoseCurve, 24, 0.19, 14, false), hoseMat);
+            root.add(hoseMesh);
+
+            // 6. DYNAMIC 3D FLAME ASSEMBLY AT CHIMNEY TOP (y = 4.7)
+            const flameGroup = new THREE.Group();
+            flameGroup.position.y = 4.7;
+            root.add(flameGroup);
+
+            // Outer Flame Mesh (Custom Deformable Lathe/Cone Geometry for Wavy Yellow vs Regular Blue)
+            const outerFlameGeo = new THREE.SphereGeometry(0.45, 28, 32);
+            // Reshape sphere into a pointed flame base profile
+            const posAttr = outerFlameGeo.attributes.position;
+            const origPositions = [];
+            for (let i = 0; i < posAttr.count; i++) {
+                let vx = posAttr.getX(i);
+                let vy = posAttr.getY(i);
+                let vz = posAttr.getZ(i);
+
+                // Normalize y from [-0.45, 0.45] to [0, 1]
+                const normY = (vy + 0.45) / 0.9;
+                const heightY = normY * 3.1; // Flame height ~ 3.1 units
+                // Taper profile: narrow at chimney mouth, slightly wider at lower-mid, pointed at tip
+                const taper = Math.sin(Math.pow(normY, 0.65) * Math.PI) * (1 - normY * 0.35);
+                vx *= taper * 1.15;
+                vz *= taper * 1.15;
+                vy = heightY;
+
+                posAttr.setXYZ(i, vx, vy, vz);
+                origPositions.push({ x: vx, y: vy, z: vz, normY: normY });
+            }
+            outerFlameGeo.computeVertexNormals();
+
+            const outerFlameMat = new THREE.MeshBasicMaterial({
+                color: 0xfacc15,
+                transparent: true,
+                opacity: 0.88,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const outerFlameMesh = new THREE.Mesh(outerFlameGeo, outerFlameMat);
+            flameGroup.add(outerFlameMesh);
+
+            // Middle Warm / Pale-Blue Core Layer
+            const midFlameGeo = outerFlameGeo.clone();
+            const midFlameMat = new THREE.MeshBasicMaterial({
+                color: 0xffedd5,
+                transparent: true,
+                opacity: 0.7,
+                depthWrite: false
+            });
+            const midFlameMesh = new THREE.Mesh(midFlameGeo, midFlameMat);
+            midFlameMesh.scale.set(0.68, 0.78, 0.68);
+            flameGroup.add(midFlameMesh);
+
+            // Distinct Sharp Inner Blue Cone (Characteristic of Non-luminous Flame!)
+            const innerConeGeo = new THREE.ConeGeometry(0.25, 1.35, 28);
+            innerConeGeo.translate(0, 0.675, 0);
+            const innerConeMat = new THREE.MeshBasicMaterial({
+                color: 0x38bdf8,
+                transparent: true,
+                opacity: 0.0,
+                depthWrite: false
+            });
+            const innerConeMesh = new THREE.Mesh(innerConeGeo, innerConeMat);
+            flameGroup.add(innerConeMesh);
+
+            // Point Light inside Flame
+            const flameLight = new THREE.PointLight(0xfbbf24, 1.2, 8);
+            flameLight.position.y = 1.5;
+            flameGroup.add(flameLight);
+
+            return {
+                root,
+                collarGroup,
+                hoseMesh,
+                flameGroup,
+                outerFlameMesh,
+                outerFlameMat,
+                midFlameMesh,
+                midFlameMat,
+                innerConeMesh,
+                innerConeMat,
+                flameLight,
+                origPositions
+            };
+        }
+
+        /**
+         * Updates a Bunsen burner's collar rotation and animates its 3D flame shape & colour
+         * based on openness (0.0 = Luminous irregular yellow, 1.0 = Non-luminous regular blue)
+         */
+        function updateBurnerVisuals(burnerObj, openness, isLit, time, phaseOffset = 0) {
+            // 1. Rotate collarGroup to accurately seal or expose the front (+Z) air hole:
+            // When openness == 0 (CLOSED): rotation.y = -1.35 rad -> Solid metal wall of collar seals the front window tightly!
+            // When openness == 1 (OPENED): rotation.y = 0.0 rad  -> Open gap of collar aligns with front window, revealing the dark hole & brass jet!
+            burnerObj.collarGroup.rotation.y = -(1.0 - openness) * 1.35;
+
+            // 2. Show/Hide Flame
+            burnerObj.flameGroup.visible = isLit;
+            if (!isLit) return;
+
+            // 3. Deform Flame Vertices:
+            // When openness == 0 (Luminous): Irregular, swaying S-wave, flickering tall yellow flame
+            // When openness == 1 (Non-luminous): Regular, steady, symmetrical pointed blue flame
+            const irregularity = 1.0 - openness;
+            const posAttr = burnerObj.outerFlameMesh.geometry.attributes.position;
+            const midPosAttr = burnerObj.midFlameMesh.geometry.attributes.position;
+            const orig = burnerObj.origPositions;
+
+            for (let i = 0; i < orig.length; i++) {
+                const o = orig[i];
+                const nY = o.normY;
+
+                // Irregular wavy S-curve displacement for Luminous flame
+                const waveX = irregularity * (
+                    Math.sin(nY * 6.5 - time * 7.5 + phaseOffset) * 0.26 * Math.pow(nY, 1.15) +
+                    Math.cos(nY * 10.0 - time * 11.0) * 0.09 * nY
+                );
+                const waveZ = irregularity * (
+                    Math.cos(nY * 5.5 - time * 6.5 + phaseOffset) * 0.16 * Math.pow(nY, 1.15)
+                );
+
+                // Vertical flicker: tall & dancing for Luminous, steady & compact for Non-luminous
+                const heightScale = (1.08 - openness * 0.14) + irregularity * Math.sin(time * 9.0 + nY * 4.0) * 0.08;
+                // Width scale: slightly narrower & cleaner cone for Non-luminous
+                const widthScale = 1.0 - openness * 0.12 + openness * Math.sin(time * 28.0 + nY * 12.0) * 0.012;
+
+                const nx = o.x * widthScale + waveX;
+                const ny = o.y * heightScale;
+                const nz = o.z * widthScale + waveZ;
+
+                posAttr.setXYZ(i, nx, ny, nz);
+                midPosAttr.setXYZ(i, nx * 0.72, ny * 0.82, nz * 0.72);
+            }
+            posAttr.needsUpdate = true;
+            midPosAttr.needsUpdate = true;
+
+            // 4. Interpolate Flame Colour (Yellow/Orange -> Clean Roaring Blue)
+            const lumOuterColor = new THREE.Color(0xfbbf24); // Warm luminous yellow
+            const nonLumOuterColor = new THREE.Color(0x2563eb); // Clean non-luminous blue
+            burnerObj.outerFlameMat.color.lerpColors(lumOuterColor, nonLumOuterColor, openness);
+            burnerObj.outerFlameMat.opacity = 0.88 - openness * 0.22;
+
+            const lumMidColor = new THREE.Color(0xfef08a); // Bright yellow core
+            const nonLumMidColor = new THREE.Color(0x60a5fa); // Light blue inner zone
+            burnerObj.midFlameMat.color.lerpColors(lumMidColor, nonLumMidColor, openness);
+            burnerObj.midFlameMat.opacity = 0.78 - openness * 0.25;
+
+            // 5. Inner Pale-Blue Cone (Only prominent when air hole is opened)
+            burnerObj.innerConeMat.opacity = Math.max(0, (openness - 0.2) * 1.1);
+            burnerObj.innerConeMesh.scale.y = 0.96 + Math.sin(time * 35) * 0.03;
+
+            // 6. Flame Light Color
+            burnerObj.flameLight.color.lerpColors(lumOuterColor, nonLumMidColor, openness);
+        }
+
+        /********************************************************************
+         * 4. MAIN ANIMATION LOOP & FLOATING LABEL PROJECTION
+         ********************************************************************/
+        function animateLab() {
+            requestAnimationFrame(animateLab);
+
+            const time = performance.now() * 0.001;
+
+            // Smoothly interpolate airHoleOpenness
+            airHoleOpenness += (targetAirHoleOpenness - airHoleOpenness) * 0.1;
+
+            // Smoothly animate Gas Tap Lever rotation (0 = OFF, -Math.PI/2 = ON)
+            if (gasTapHandleMesh) {
+                const targetTapRot = gasTapOpen ? -Math.PI / 2 : 0;
+                gasTapHandleMesh.rotation.y += (targetTapRot - gasTapHandleMesh.rotation.y) * 0.12;
+            }
+
+            // Smoothly animate 3D Gas Lighter Position, Trigger Button & Sparks
+            if (lighterGroup) {
+                lighterGroup.position.lerp(lighterTargetPos, 0.1);
+                lighterGroup.rotation.z += (lighterTargetRotZ - lighterGroup.rotation.z) * 0.1;
+                lighterBtnMesh.position.x = 0.24 - lighterButtonPressed * 0.09;
+
+                if (sparkIntensity > 0.05) {
+                    sparkGroup.visible = true;
+                    sparkGroup.rotation.z = time * 25;
+                    const sScale = 0.7 + Math.sin(time * 45) * 0.35;
+                    sparkGroup.scale.setScalar(sScale);
+                    sparkIntensity *= 0.94;
+                } else {
+                    sparkGroup.visible = false;
+                }
+            }
+
+            // Update Burners
+            if (!isSideBySide) {
+                // Single Burner at center
+                mainBurner.root.position.x += (0 - mainBurner.root.position.x) * 0.12;
+                secondBurner.root.visible = false;
+                gasTapGroup.visible = true;
+                mainBurner.hoseMesh.visible = true;
+
+                updateBurnerVisuals(mainBurner, airHoleOpenness, flameLit, time, 0);
+            } else {
+                // Side-by-Side Comparison Mode:
+                // Left Burner (-2.6) = Luminous Flame (air hole closed, openness = 0)
+                // Right Burner (+2.6) = Non-luminous Flame (air hole opened, openness = 1)
+                mainBurner.root.position.x += (-2.6 - mainBurner.root.position.x) * 0.12;
+                secondBurner.root.position.x += (2.6 - secondBurner.root.position.x) * 0.12;
+                secondBurner.root.visible = true;
+                gasTapGroup.visible = false;
+                mainBurner.hoseMesh.visible = false;
+
+                updateBurnerVisuals(mainBurner, 0.0, true, time, 0);
+                updateBurnerVisuals(secondBurner, 1.0, true, time, 2.0);
+            }
+
+            // Update Synthesized Audio Filter/Gain if sound is enabled
+            updateBurnerAudio();
+
+            // Smooth Camera Orbit Interpolation
+            camSpherical.radius += (targetSpherical.radius - camSpherical.radius) * 0.08;
+            camSpherical.theta += (targetSpherical.theta - camSpherical.theta) * 0.08;
+            camSpherical.phi += (targetSpherical.phi - camSpherical.phi) * 0.08;
+            camLookAt.lerp(targetLookAt, 0.08);
+
+            camera.position.x = camLookAt.x + camSpherical.radius * Math.sin(camSpherical.phi) * Math.sin(camSpherical.theta);
+            camera.position.y = camLookAt.y + camSpherical.radius * Math.cos(camSpherical.phi);
+            camera.position.z = camLookAt.z + camSpherical.radius * Math.sin(camSpherical.phi) * Math.cos(camSpherical.theta);
+            camera.lookAt(camLookAt);
+
+            renderer.render(scene, camera);
+
+            // Sync 2D HTML Labels & Textbook Pink Flame Outline SVG with 3D Coordinates
+            updateLabelsAndOutlines();
+        }
+
+        function project3DToScreen(vec3) {
+            const container = document.getElementById('canvas-wrapper');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            const proj = vec3.clone().project(camera);
+            return {
+                x: (proj.x * 0.5 + 0.5) * width,
+                y: (-(proj.y * 0.5) + 0.5) * height,
+                z: proj.z
+            };
+        }
+
+        function updateLabelsAndOutlines() {
+            const tagChimney = document.getElementById('tag-chimney');
+            const tagCollar = document.getElementById('tag-collar');
+            const tagGasTap = document.getElementById('tag-gastap');
+            const tagCompLeft = document.getElementById('tag-comp-left');
+            const tagCompRight = document.getElementById('tag-comp-right');
+
+            if (!isSideBySide) {
+                tagChimney.classList.remove('hidden');
+                tagCollar.classList.remove('hidden');
+                tagGasTap.classList.remove('hidden');
+                tagCompLeft.classList.add('hidden');
+                tagCompRight.classList.add('hidden');
+
+                const pChimney = project3DToScreen(new THREE.Vector3(mainBurner.root.position.x - 1.35, 3.5, 0));
+                tagChimney.style.left = `${pChimney.x}px`;
+                tagChimney.style.top = `${pChimney.y}px`;
+
+                const pCollar = project3DToScreen(new THREE.Vector3(mainBurner.root.position.x - 1.75, 1.45, 0.4));
+                tagCollar.style.left = `${pCollar.x}px`;
+                tagCollar.style.top = `${pCollar.y}px`;
+
+                const pTap = project3DToScreen(new THREE.Vector3(4.6, 2.1, -1.4));
+                tagGasTap.style.left = `${pTap.x}px`;
+                tagGasTap.style.top = `${pTap.y}px`;
+            } else {
+                tagChimney.classList.add('hidden');
+                tagCollar.classList.add('hidden');
+                tagGasTap.classList.add('hidden');
+                tagCompLeft.classList.remove('hidden');
+                tagCompRight.classList.remove('hidden');
+
+                const pLeft = project3DToScreen(new THREE.Vector3(mainBurner.root.position.x, -0.55, 1.2));
+                tagCompLeft.style.left = `${pLeft.x}px`;
+                tagCompLeft.style.top = `${pLeft.y}px`;
+
+                const pRight = project3DToScreen(new THREE.Vector3(secondBurner.root.position.x, -0.55, 1.2));
+                tagCompRight.style.left = `${pRight.x}px`;
+                tagCompRight.style.top = `${pRight.y}px`;
+            }
+
+            // Update SVG Pink Flame Outlines if enabled
+            const svgOverlay = document.getElementById('svg-flame-outlines');
+            if (!showPinkOutlines || !flameLit) {
+                svgOverlay.classList.add('hidden');
+                return;
+            }
+            svgOverlay.classList.remove('hidden');
+
+            const gLum = document.getElementById('svg-outline-luminous');
+            const gNonLum = document.getElementById('svg-outline-nonluminous');
+
+            // Calculate scale factor based on camera distance
+            const scaleFactor = Math.max(0.55, Math.min(1.65, 14.5 / camSpherical.radius));
+
+            if (isSideBySide) {
+                // Show BOTH pink outlines side by side!
+                gLum.style.display = 'block';
+                gNonLum.style.display = 'block';
+
+                const ptLeft = project3DToScreen(new THREE.Vector3(mainBurner.root.position.x, 4.7, 0));
+                gLum.setAttribute('transform', `translate(${ptLeft.x}, ${ptLeft.y}) scale(${scaleFactor})`);
+
+                const ptRight = project3DToScreen(new THREE.Vector3(secondBurner.root.position.x, 4.7, 0));
+                gNonLum.setAttribute('transform', `translate(${ptRight.x}, ${ptRight.y}) scale(${scaleFactor})`);
+            } else {
+                const ptCenter = project3DToScreen(new THREE.Vector3(mainBurner.root.position.x, 4.7, 0));
+                if (targetAirHoleOpenness < 0.5) {
+                    gLum.style.display = 'block';
+                    gNonLum.style.display = 'none';
+                    gLum.setAttribute('transform', `translate(${ptCenter.x}, ${ptCenter.y}) scale(${scaleFactor})`);
+                } else {
+                    gLum.style.display = 'none';
+                    gNonLum.style.display = 'block';
+                    gNonLum.setAttribute('transform', `translate(${ptCenter.x}, ${ptCenter.y}) scale(${scaleFactor})`);
+                }
+            }
+        }
+
+        /********************************************************************
+         * 5. PART 1 CONTROLLERS: STEP-BY-STEP LIGHTING ANIMATION
+         *    Correct Textbook Order: (3) -> (5) -> (4) -> (1) -> (2)
+         ********************************************************************/
+        const LIGHTING_STEPS_INFO = {
+            0: {
+                status: "Ready to Light (Gas Tap OFF, Air Hole Open)",
+                safety: "<strong>Before starting:</strong> Check that the gas tap is OFF, and notice the air hole is currently open. Arrange the 5 steps below or press <strong>Next Step ▶</strong> to watch the safe lighting procedure!"
+            },
+            1: {
+                stmtNum: 3,
+                status: "1st Step: (3) Close the air hole",
+                safety: "<strong>Step 1 is (3) Close the air hole:</strong> Rotating the metal collar to seal the air hole prevents <strong>striking back</strong> and gives a safe, visible yellow flame when lit."
+            },
+            2: {
+                stmtNum: 5,
+                status: "2nd Step: (5) Put the tip of a gas lighter over the chimney",
+                safety: "<strong>Step 2 is (5) Put the tip of a gas lighter over the chimney:</strong> Always position the igniter at the top of the chimney <em>before</em> turning on the gas tap so unburnt gas does not leak into the lab!"
+            },
+            3: {
+                stmtNum: 4,
+                status: "3rd Step: (4) Press the button on the gas lighter",
+                safety: "<strong>Step 3 is (4) Press the button on the gas lighter:</strong> Pressing the piezo button creates sparks right above the chimney mouth."
+            },
+            4: {
+                stmtNum: 1,
+                status: "4th Step: (1) Turn on the gas tap",
+                safety: "<strong>Step 4 is (1) Turn on the gas tap:</strong> Gas flows up the chimney and immediately ignites into a quiet, yellow <strong>luminous flame</strong>."
+            },
+            5: {
+                stmtNum: 2,
+                status: "5th Step: (2) Open the air hole",
+                safety: "<strong>Step 5 is (2) Open the air hole:</strong> Rotating the collar to open the air hole mixes air (oxygen) with the gas, turning the yellow flame into a clean, hot blue <strong>non-luminous flame</strong>!"
+            }
+        };
+
+        // Student Ordering Blank-Filling State (Starts EMPTY so answer 3->5->4->1->2 is NOT spoiled!)
+        const CORRECT_ORDER = [3, 5, 4, 1, 2];
+        let userSlots = [null, null, null, null, null];
+        let activeBlankIdx = 0;
+
+        function clearAutoPlayTimers() {
+            autoPlayTimers.forEach(t => clearTimeout(t));
+            autoPlayTimers = [];
+        }
+
+        function handleStatementClick(stmtNumber) {
+            // 1. Fill the current blank slot with the clicked statement number (1)-(5)
+            if (activeBlankIdx < 5) {
+                inputSlotNumber(stmtNumber);
+            }
+            // 2. If the clicked statement matches the next logical step or user wants to preview, also animate if revealed
+            const stepMap = { 3: 1, 5: 2, 4: 3, 1: 4, 2: 5 };
+            if (userSlots.every(v => v !== null)) {
+                runLightingStep(stepMap[stmtNumber], false, false);
+            }
+        }
+
+        function runLightingStep(stepIndex, fromAutoPlay = false, revealSlot = true) {
+            if (!fromAutoPlay) clearAutoPlayTimers();
+            if (isSideBySide) toggleSideBySideComparison(false);
+
+            currentLightingStep = stepIndex;
+            const info = LIGHTING_STEPS_INFO[stepIndex];
+
+            // Update HUD & Safety Text
+            document.getElementById('hud-main-status').textContent = info.status;
+            document.getElementById('part1-safety-text').innerHTML = info.safety;
+            document.getElementById('lighting-step-indicator').textContent = `Step ${stepIndex} of 5`;
+
+            // Progressive reveal of the answer slot & step badge when stepping through the animation
+            if (stepIndex >= 1 && stepIndex <= 5 && revealSlot) {
+                userSlots[stepIndex - 1] = CORRECT_ORDER[stepIndex - 1];
+                if (activeBlankIdx < stepIndex) activeBlankIdx = stepIndex;
+                renderOrderingSlots();
+                const badgeEl = document.getElementById(`stmt-badge-${info.stmtNum}`);
+                if (badgeEl) badgeEl.classList.remove('hidden');
+            }
+
+            // Highlight active statement card
+            [1, 2, 3, 4, 5].forEach(n => {
+                const card = document.getElementById(`stmt-card-${n}`);
+                if (card) {
+                    card.classList.remove('border-blue-600', 'bg-blue-50/70', 'ring-2', 'ring-blue-400/50');
+                    card.classList.add('border-slate-200', 'bg-white');
+                }
+            });
+            if (info.stmtNum) {
+                const activeCard = document.getElementById(`stmt-card-${info.stmtNum}`);
+                if (activeCard) {
+                    activeCard.classList.remove('border-slate-200', 'bg-white');
+                    activeCard.classList.add('border-blue-600', 'bg-blue-50/70', 'ring-2', 'ring-blue-400/50');
+                }
+            }
+
+            // Highlight active slot in the 5-slot chain
+            for (let s = 0; s < 5; s++) {
+                const slotEl = document.getElementById(`slot-${s}`);
+                if (slotEl) {
+                    if (s === stepIndex - 1) {
+                        slotEl.classList.add('ring-2', 'ring-pink-400');
+                    } else {
+                        slotEl.classList.remove('ring-2', 'ring-pink-400');
+                    }
+                }
+            }
+
+            // Execute 3D State & Camera Animation for each step
+            if (stepIndex === 0) {
+                // Start with Air Hole OPEN (0.85) so that Step 1 ("Close the air hole") visibly rotates the collar to seal the hole!
+                gasTapOpen = false;
+                flameLit = false;
+                targetAirHoleOpenness = 0.85;
+                lighterTargetPos.set(-4.8, 1.2, 1.5);
+                lighterTargetRotZ = 0.35;
+                lighterButtonPressed = 0;
+                sparkIntensity = 0;
+                setCameraPreset('full');
+            } else if (stepIndex === 1) {
+                // (3) Close the air hole -> Collar rotates to cover & seal the dark hole completely!
+                gasTapOpen = false;
+                flameLit = false;
+                targetAirHoleOpenness = 0.0;
+                lighterTargetPos.set(-4.8, 1.2, 1.5);
+                lighterTargetRotZ = 0.35;
+                lighterButtonPressed = 0;
+                setCameraPreset('airhole');
+            } else if (stepIndex === 2) {
+                // (5) Put the tip of a gas lighter over the chimney
+                gasTapOpen = false;
+                flameLit = false;
+                targetAirHoleOpenness = 0.0;
+                lighterTargetRotZ = -0.95;
+                lighterTargetPos.set(-2.95, 2.75, 0);
+                lighterButtonPressed = 0;
+                setCameraPreset('full');
+            } else if (stepIndex === 3) {
+                // (4) Press the button on the gas lighter
+                gasTapOpen = false;
+                flameLit = false;
+                targetAirHoleOpenness = 0.0;
+                lighterTargetRotZ = -0.95;
+                lighterTargetPos.set(-2.95, 2.75, 0);
+                lighterButtonPressed = 1;
+                sparkIntensity = 1.8;
+                setCameraPreset('flame');
+            } else if (stepIndex === 4) {
+                // (1) Turn on the gas tap -> Yellow Luminous Flame ignites!
+                gasTapOpen = true;
+                flameLit = true;
+                targetAirHoleOpenness = 0.0;
+                lighterTargetRotZ = -0.95;
+                lighterTargetPos.set(-2.95, 2.75, 0);
+                lighterButtonPressed = 1;
+                sparkIntensity = 1.4;
+                setCameraPreset('full');
+            } else if (stepIndex === 5) {
+                // (2) Open the air hole -> Collar rotates open, transforming flame to Blue Non-luminous Flame!
+                gasTapOpen = true;
+                flameLit = true;
+                targetAirHoleOpenness = 1.0;
+                lighterTargetPos.set(-4.8, 1.2, 1.5);
+                lighterTargetRotZ = 0.35;
+                lighterButtonPressed = 0;
+                setCameraPreset('full');
+            }
+
+            updateBottomTelemetryBar();
+        }
+
+        function stepLightingRelative(delta) {
+            let next = currentLightingStep + delta;
+            if (next < 0) next = 0;
+            if (next > 5) next = 5;
+            runLightingStep(next, false, true);
+        }
+
+        function resetLightingSimulation() {
+            clearOrderingSlots();
+            runLightingStep(0, false, false);
+        }
+
+        function playFullLightingSequence() {
+            clearAutoPlayTimers();
+            runLightingStep(1, true, true);
+            autoPlayTimers.push(setTimeout(() => runLightingStep(2, true, true), 2300));
+            autoPlayTimers.push(setTimeout(() => runLightingStep(3, true, true), 4600));
+            autoPlayTimers.push(setTimeout(() => runLightingStep(4, true, true), 6800));
+            autoPlayTimers.push(setTimeout(() => runLightingStep(5, true, true), 9400));
+        }
+
+        function selectBlankSlot(idx) {
+            activeBlankIdx = idx;
+            if (userSlots[idx] !== null) {
+                // If this slot already has a correct step, preview its 3D step
+                const stepMap = { 3: 1, 5: 2, 4: 3, 1: 4, 2: 5 };
+                if (stepMap[userSlots[idx]]) {
+                    runLightingStep(stepMap[userSlots[idx]], false, false);
+                }
+            }
+            renderOrderingSlots();
+        }
+
+        function clearOrderingSlots() {
+            userSlots = [null, null, null, null, null];
+            activeBlankIdx = 0;
+            [1, 2, 3, 4, 5].forEach(n => {
+                const b = document.getElementById(`stmt-badge-${n}`);
+                if (b) b.classList.add('hidden');
+            });
+            renderOrderingSlots();
+        }
+
+        function revealOrderingAnswer() {
+            userSlots = [3, 5, 4, 1, 2];
+            activeBlankIdx = 5;
+            [1, 2, 3, 4, 5].forEach(n => {
+                const b = document.getElementById(`stmt-badge-${n}`);
+                if (b) b.classList.remove('hidden');
+            });
+            renderOrderingSlots();
+        }
+
+        function inputSlotNumber(num) {
+            if (activeBlankIdx >= 5) activeBlankIdx = 0;
+            userSlots[activeBlankIdx] = num;
+            // Advance to next empty slot
+            let nextEmpty = userSlots.findIndex((v, i) => v === null && i > activeBlankIdx);
+            if (nextEmpty === -1) nextEmpty = userSlots.findIndex(v => v === null);
+            activeBlankIdx = nextEmpty !== -1 ? nextEmpty : 5;
+            renderOrderingSlots();
+        }
+
+        function renderOrderingSlots() {
+            let correctCount = 0;
+            let filledCount = 0;
+
+            for (let i = 0; i < 5; i++) {
+                const el = document.getElementById(`slot-${i}`);
+                if (!el) continue;
+                if (userSlots[i] === null) {
+                    const isFocused = (i === activeBlankIdx);
+                    el.textContent = isFocused ? "?" : "___";
+                    el.className = `flex-1 py-2 border-b-2 border-slate-800 text-center text-base sm:text-lg font-bold rounded-t transition ${
+                        isFocused ? 'text-blue-600 bg-blue-50/70' : 'text-slate-400 hover:bg-slate-100'
+                    }`;
+                } else {
+                    filledCount++;
+                    const isRight = userSlots[i] === CORRECT_ORDER[i];
+                    if (isRight) correctCount++;
+                    el.textContent = userSlots[i];
+                    el.className = `flex-1 py-2 border-b-2 border-slate-800 text-center text-base sm:text-lg font-extrabold rounded-t transition ${
+                        isRight ? 'pink-answer bg-pink-50/40' : 'text-amber-600 bg-amber-50/60'
+                    }`;
+                }
+            }
+
+            const fb = document.getElementById('order-feedback-badge');
+            if (!fb) return;
+            if (filledCount === 0) {
+                fb.textContent = "Fill all 5 blanks!";
+                fb.className = "text-xs font-extrabold text-slate-500";
+            } else if (correctCount === 5) {
+                fb.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i>Correct! 3 ➔ 5 ➔ 4 ➔ 1 ➔ 2`;
+                fb.className = "text-xs font-extrabold text-emerald-700";
+            } else {
+                fb.textContent = `${correctCount} / 5 correct so far`;
+                fb.className = "text-xs font-extrabold text-amber-700";
+            }
+        }
+
+        /********************************************************************
+         * 6. PART 2 CONTROLLERS: LUMINOUS VS NON-LUMINOUS FLAME & COMPARISON
+         ********************************************************************/
+        function setAirHoleOpenness(val) {
+            clearAutoPlayTimers();
+            if (isSideBySide && (val === 0 || val === 1)) {
+                // Exit side-by-side if user clicks a single flame preset, or keep lit
+                toggleSideBySideComparison(false);
+            }
+
+            gasTapOpen = true;
+            flameLit = true;
+            lighterTargetPos.set(-4.8, 1.2, 1.5);
+            lighterTargetRotZ = 0.35;
+            lighterButtonPressed = 0;
+
+            targetAirHoleOpenness = Math.max(0, Math.min(1, val));
+
+            // Sync slider & percentage label
+            const slider = document.getElementById('airhole-slider');
+            if (slider) slider.value = targetAirHoleOpenness;
+            const pctLabel = document.getElementById('collar-pct-label');
+            if (pctLabel) pctLabel.textContent = `${Math.round(targetAirHoleOpenness * 100)}% Opened`;
+
+            // Highlight active preset button
+            const btnLum = document.getElementById('btn-preset-luminous');
+            const btnNonLum = document.getElementById('btn-preset-nonluminous');
+            if (btnLum && btnNonLum) {
+                if (targetAirHoleOpenness < 0.5) {
+                    btnLum.className = "p-3 rounded-xl border-2 border-amber-400 bg-amber-50/90 ring-2 ring-amber-300 transition flex flex-col items-center text-center shadow-sm";
+                    btnNonLum.className = "p-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-blue-50 transition flex flex-col items-center text-center shadow-sm";
+                } else {
+                    btnLum.className = "p-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-amber-50 transition flex flex-col items-center text-center shadow-sm";
+                    btnNonLum.className = "p-3 rounded-xl border-2 border-blue-500 bg-blue-50/90 ring-2 ring-blue-300 transition flex flex-col items-center text-center shadow-sm";
+                }
+            }
+
+            // Update Top-Left HUD
+            if (currentLabMode === 'part2' && !isSideBySide) {
+                document.getElementById('hud-main-status').textContent = targetAirHoleOpenness < 0.5
+                    ? "Luminous Flame (Air Hole Closed)"
+                    : "Non-luminous Flame (Air Hole Opened)";
+            }
+
+            updateBottomTelemetryBar();
+        }
+
+        function toggleSideBySideComparison(forceState = null) {
+            isSideBySide = forceState !== null ? forceState : !isSideBySide;
+            const btn = document.getElementById('btn-compare-mode');
+            const txt = document.getElementById('compare-btn-text');
+
+            if (isSideBySide) {
+                gasTapOpen = true;
+                flameLit = true;
+                lighterTargetPos.set(-6.5, 1.2, 1.5);
+                txt.textContent = "Side-by-Side Comparison: ON";
+                btn.classList.add('ring-4', 'ring-purple-300');
+                document.getElementById('hud-main-status').textContent = "Side-by-Side: Luminous vs. Non-luminous Flame";
+                targetSpherical = { radius: 16.5, theta: 0.0, phi: 1.32 };
+                targetLookAt.set(0, 3.0, 0);
+            } else {
+                txt.textContent = "Side-by-Side Comparison: OFF";
+                btn.classList.remove('ring-4', 'ring-purple-300');
+                document.getElementById('hud-main-status').textContent = targetAirHoleOpenness < 0.5
+                    ? "Luminous Flame (Air Hole Closed)"
+                    : "Non-luminous Flame (Air Hole Opened)";
+                setCameraPreset('full');
+            }
+            updateBottomTelemetryBar();
+        }
+
+        function toggleOutlineOverlay() {
+            showPinkOutlines = !showPinkOutlines;
+            if (showPinkOutlines && !flameLit) {
+                gasTapOpen = true;
+                flameLit = true;
+            }
+            const btnText = document.getElementById('outline-btn-text');
+            const btn = document.getElementById('btn-outline-overlay');
+            if (showPinkOutlines) {
+                btnText.textContent = "Show Flame Outline: ON";
+                btn.classList.add('bg-pink-600', 'text-white', 'border-pink-600');
+                btn.classList.remove('bg-white/95', 'text-pink-700');
+            } else {
+                btnText.textContent = "Show Flame Outline: OFF";
+                btn.classList.remove('bg-pink-600', 'text-white', 'border-pink-600');
+                btn.classList.add('bg-white/95', 'text-pink-700');
+            }
+        }
+
+        function updateBottomTelemetryBar() {
+            const tagHole = document.getElementById('tag-airhole-state');
+            const tagTap = document.getElementById('tag-gastap-state');
+            const barHole = document.getElementById('bar-airhole');
+            const barShape = document.getElementById('bar-shape');
+            const barCol = document.getElementById('bar-colour');
+            const barNoise = document.getElementById('bar-noise');
+            const noiseBars = document.getElementById('noise-bars');
+
+            const isOpen = targetAirHoleOpenness >= 0.5;
+            tagHole.textContent = isOpen ? "OPENED" : "CLOSED";
+            tagTap.textContent = gasTapOpen ? "ON" : "OFF";
+
+            if (isSideBySide) {
+                barHole.textContent = "Closed (Left) vs Opened (Right)";
+                barShape.textContent = "irregular vs regular";
+                barCol.textContent = "yellow vs blue";
+                barNoise.textContent = "quiet vs noisy";
+                return;
+            }
+
+            barHole.textContent = isOpen ? "Opened" : "Closed";
+            if (!flameLit) {
+                barShape.textContent = "—";
+                barCol.textContent = "—";
+                barNoise.textContent = "—";
+                noiseBars.innerHTML = `<span class="w-1 h-1.5 bg-slate-300 rounded-full"></span><span class="w-1 h-1.5 bg-slate-300 rounded-full"></span><span class="w-1 h-1.5 bg-slate-300 rounded-full"></span>`;
+            } else if (!isOpen) {
+                barShape.textContent = "irregular";
+                barCol.textContent = "yellow";
+                barNoise.textContent = "quiet";
+                noiseBars.innerHTML = `<span class="w-1 h-2 bg-amber-500 rounded-full"></span><span class="w-1 h-2.5 bg-amber-500 rounded-full"></span><span class="w-1 h-2 bg-amber-500 rounded-full"></span>`;
+            } else {
+                barShape.textContent = "regular";
+                barCol.textContent = "blue";
+                barNoise.textContent = "noisy";
+                noiseBars.innerHTML = `
+                    <span class="w-1 h-3.5 bg-blue-600 rounded-full sound-wave-bar"></span>
+                    <span class="w-1 h-4 bg-blue-600 rounded-full sound-wave-bar" style="animation-delay:0.15s"></span>
+                    <span class="w-1 h-3.5 bg-blue-600 rounded-full sound-wave-bar" style="animation-delay:0.3s"></span>
+                `;
+            }
+        }
+
+        // Textbook Table Answer Key Toggles (Image 1)
+        let allAnswersVisible = true;
+        const TABLE_CELL_IDS = [
+            'draw-lum', 'draw-nonlum',
+            'shape-lum', 'shape-nonlum',
+            'col-lum', 'col-nonlum',
+            'noise-lum', 'noise-nonlum'
+        ];
+
+        function toggleCellAnswer(cellKey) {
+            const el = document.getElementById(`ans-${cellKey}`);
+            if (!el) return;
+            el.classList.toggle('opacity-0');
+        }
+
+        function toggleAllTableAnswers() {
+            allAnswersVisible = !allAnswersVisible;
+            TABLE_CELL_IDS.forEach(k => {
+                const el = document.getElementById(`ans-${k}`);
+                if (!el) return;
+                if (allAnswersVisible) {
+                    el.classList.remove('opacity-0');
+                } else {
+                    el.classList.add('opacity-0');
+                }
+            });
+            document.getElementById('btn-reveal-all-text').textContent = allAnswersVisible
+                ? "Hide / Quiz Answers"
+                : "Reveal All Answers";
+        }
+
+        /********************************************************************
+         * 7. SWITCH BETWEEN PART 1 AND PART 2
+         ********************************************************************/
+        function switchLabMode(mode) {
+            clearAutoPlayTimers();
+            currentLabMode = mode;
+
+            const tab1 = document.getElementById('tab-btn-part1');
+            const tab2 = document.getElementById('tab-btn-part2');
+            const panel1 = document.getElementById('panel-part1');
+            const panel2 = document.getElementById('panel-part2');
+            const subtitle = document.getElementById('hud-mode-subtitle');
+
+            if (mode === 'part1') {
+                tab1.className = "px-4 py-2 rounded-xl font-extrabold text-xs sm:text-sm transition flex items-center gap-2 bg-blue-600 text-white shadow-md";
+                tab2.className = "px-4 py-2 rounded-xl font-extrabold text-xs sm:text-sm transition flex items-center gap-2 text-slate-700 hover:bg-white";
+                panel1.classList.remove('hidden');
+                panel1.classList.add('flex');
+                panel2.classList.add('hidden');
+                panel2.classList.remove('flex');
+                subtitle.textContent = "PART 1 • STEP-BY-STEP LIGHTING ANIMATION";
+
+                toggleSideBySideComparison(false);
+                runLightingStep(1);
+            } else {
+                tab2.className = "px-4 py-2 rounded-xl font-extrabold text-xs sm:text-sm transition flex items-center gap-2 bg-blue-600 text-white shadow-md";
+                tab1.className = "px-4 py-2 rounded-xl font-extrabold text-xs sm:text-sm transition flex items-center gap-2 text-slate-700 hover:bg-white";
+                panel2.classList.remove('hidden');
+                panel2.classList.add('flex');
+                panel1.classList.add('hidden');
+                panel1.classList.remove('flex');
+                subtitle.textContent = "PART 2 • LUMINOUS VS NON-LUMINOUS FLAME";
+
+                lighterTargetPos.set(-5.5, 1.2, 1.5);
+                setAirHoleOpenness(0);
+                setCameraPreset('full');
+            }
+        }
+
+        /********************************************************************
+         * 8. WEB AUDIO API SYNTHESIZER (QUIET VS NOISY BURNER ROAR)
+         ********************************************************************/
+        function toggleBurnerSound() {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('audio-icon');
+            const label = document.getElementById('audio-label');
+
+            if (soundEnabled) {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    // Create white/pink noise buffer for realistic gas burner sound
+                    const bufferSize = audioCtx.sampleRate * 2;
+                    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    let lastOut = 0.0;
+                    for (let i = 0; i < bufferSize; i++) {
+                        const white = Math.random() * 2 - 1;
+                        data[i] = (lastOut + (0.04 * white)) / 1.04;
+                        lastOut = data[i];
+                        data[i] *= 3.5;
+                    }
+
+                    const noiseSource = audioCtx.createBufferSource();
+                    noiseSource.buffer = buffer;
+                    noiseSource.loop = true;
+
+                    noiseFilterNode = audioCtx.createBiquadFilter();
+                    noiseFilterNode.type = 'bandpass';
+                    noiseFilterNode.frequency.value = 220;
+                    noiseFilterNode.Q.value = 0.9;
+
+                    noiseGainNode = audioCtx.createGain();
+                    noiseGainNode.gain.value = 0.0;
+
+                    noiseSource.connect(noiseFilterNode);
+                    noiseFilterNode.connect(noiseGainNode);
+                    noiseGainNode.connect(audioCtx.destination);
+                    noiseSource.start();
+                }
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                icon.className = "fa-solid fa-volume-high text-blue-600";
+                label.textContent = "Sound: ON";
+            } else {
+                if (noiseGainNode) noiseGainNode.gain.value = 0;
+                icon.className = "fa-solid fa-volume-xmark text-slate-500";
+                label.textContent = "Sound: OFF";
+            }
+        }
+
+        function updateBurnerAudio() {
+            if (!soundEnabled || !noiseGainNode || !noiseFilterNode) return;
+            if (!flameLit) {
+                noiseGainNode.gain.value = 0.0;
+                return;
+            }
+            // Quiet gentle hiss when air hole is closed (0.04 gain, low filter)
+            // Noisy roaring jet when air hole is opened (0.28 gain, higher bandpass roar)
+            const effOpenness = isSideBySide ? 0.85 : airHoleOpenness;
+            noiseGainNode.gain.value = 0.03 + effOpenness * 0.25;
+            noiseFilterNode.frequency.value = 180 + effOpenness * 420;
+        }
+
+        /********************************************************************
+         * 9. CAMERA PRESETS & ORBIT CONTROLS
+         ********************************************************************/
+        function setCameraPreset(preset) {
+            if (preset === 'full') {
+                targetSpherical = { radius: 14.5, theta: 0.16, phi: 1.32 };
+                targetLookAt.set(0, 2.9, 0);
+            } else if (preset === 'flame') {
+                targetSpherical = { radius: 8.5, theta: 0.1, phi: 1.35 };
+                targetLookAt.set(mainBurner ? mainBurner.root.position.x : 0, 5.6, 0);
+            } else if (preset === 'airhole') {
+                targetSpherical = { radius: 6.5, theta: 0.22, phi: 1.38 };
+                targetLookAt.set(mainBurner ? mainBurner.root.position.x : 0, 1.45, 0);
+            }
+        }
+
+        function resetCameraView() {
+            if (isSideBySide) {
+                targetSpherical = { radius: 16.5, theta: 0.0, phi: 1.32 };
+                targetLookAt.set(0, 3.0, 0);
+            } else {
+                setCameraPreset('full');
+            }
+        }
+
+        function setupCameraControls(domEl) {
+            domEl.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                prevMouse = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - prevMouse.x;
+                const dy = e.clientY - prevMouse.y;
+                prevMouse = { x: e.clientX, y: e.clientY };
+
+                targetSpherical.theta -= dx * 0.007;
+                targetSpherical.phi = Math.max(0.45, Math.min(1.52, targetSpherical.phi - dy * 0.007));
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            domEl.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    isDragging = true;
+                    prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+            }, { passive: true });
+
+            window.addEventListener('touchmove', (e) => {
+                if (!isDragging || e.touches.length !== 1) return;
+                const dx = e.touches[0].clientX - prevMouse.x;
+                const dy = e.touches[0].clientY - prevMouse.y;
+                prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+
+                targetSpherical.theta -= dx * 0.007;
+                targetSpherical.phi = Math.max(0.45, Math.min(1.52, targetSpherical.phi - dy * 0.007));
+            }, { passive: true });
+
+            window.addEventListener('touchend', () => {
+                isDragging = false;
+            });
+
+            domEl.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                targetSpherical.radius = Math.max(5.5, Math.min(24, targetSpherical.radius + e.deltaY * 0.012));
+            }, { passive: false });
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-wrapper');
+            if (!container || !renderer || !camera) return;
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+
+        /********************************************************************
+         * 10. INITIALIZE ON WINDOW LOAD
+         ********************************************************************/
+        window.onload = function () {
+            initThreeLab();
+            clearOrderingSlots();
+            runLightingStep(0, false, false);
+            animateLab();
+        };
+    </script>
+</body>
+</html>
